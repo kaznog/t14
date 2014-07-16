@@ -20,6 +20,12 @@ GroundLayer::GroundLayer()
 
 GroundLayer::~GroundLayer()
 {
+    //call DestroyBody for every body to invoke destruction listener to clear fixture user data automatically
+    for ( b2Body* b = _world->GetBodyList(); b ; ) {
+        b2Body* nextBody = b->GetNext();
+        _world->DestroyBody( b );
+        b = nextBody;
+    }
     CC_SAFE_DELETE(_world);
     CC_SAFE_DELETE(_car);
 }
@@ -35,10 +41,13 @@ bool GroundLayer::init()
     }
     auto director = Director::getInstance();
     _winSize = director->getWinSize();
-    this->setAnchorPoint(Vec2(0, 0));
-    this->setPosition(_winSize.width/2, _winSize.height/2);
     _scale = _winSize.height/100;
     this->setScale(_scale);
+    log("scale: %f", _scale);
+
+//    this->ignoreAnchorPointForPosition(false);
+    this->setAnchorPoint(Vec2(0, 0));
+    this->setPosition(_winSize.width/2, _winSize.height/2);
     
     initPhysics();
     scheduleUpdate();
@@ -51,20 +60,126 @@ void GroundLayer::initPhysics()
     _car = new Car(_world, Vec2(0, 0));
 }
 
-void GroundLayer::draw(Renderer *renderer, const Mat4 &transform, bool transformUpdated)
+void GroundLayer::draw(Renderer *renderer, const Mat4 &transform, uint32_t flags)
 {
     if ( !_world )
         return;
     
     // debug draw display will be on top of anything else
-    Layer::draw(renderer, transform, transformUpdated);
+    Layer::draw(renderer, transform, flags);
     
-    GL::enableVertexAttribs(GL::VERTEX_ATTRIB_FLAG_POSITION);
-    Director::getInstance()->pushMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW);
+    _customCmd.init(_globalZOrder);
+    _customCmd.func = CC_CALLBACK_0(GroundLayer::onDraw, this, transform, flags);
+    renderer->addCommand(&_customCmd);
+}
+
+void GroundLayer::onDraw(const Mat4 &transform, uint32_t flags)
+{
+    Director* director = Director::getInstance();
+    CCASSERT(nullptr != director, "Director is null when seting matrix stack");
+    director->pushMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW);
+    director->loadMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW, transform);
     
-    _world->DrawDebugData();
+    GL::enableVertexAttribs( cocos2d::GL::VERTEX_ATTRIB_FLAG_POSITION );
+
+
+    for (b2Body* b = _world->GetBodyList(); b; b = b->GetNext()) {
+        const b2Transform& xf = b->GetTransform();
+        for (b2Fixture* f = b->GetFixtureList(); f; f = f->GetNext())
+        {
+            if (b->IsActive() == false)
+            {
+                DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.3f));
+            }
+            else if (b->GetType() == b2_staticBody)
+            {
+                DrawShape(f, xf, b2Color(0.5f, 0.9f, 0.5f));
+            }
+            else if (b->GetType() == b2_kinematicBody)
+            {
+                DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.9f));
+            }
+            else if (b->IsAwake() == false)
+            {
+                DrawShape(f, xf, b2Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                DrawShape(f, xf, b2Color(0.9f, 0.7f, 0.7f));
+            }
+        }
+    }
     
-    Director::getInstance()->popMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW);
+//    _world->DrawDebugData();
+    CHECK_GL_ERROR_DEBUG();
+    
+    director->popMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW);
+}
+
+void GroundLayer::DrawShape(b2Fixture *fixture, const b2Transform &xf, const b2Color &color)
+{
+    b2Vec2 carPos = _car->m_body->GetPosition();
+    Vec3 transPos = Vec3(carPos.x, carPos.y, 0);
+    float angle = -1 * _car->m_body->GetAngle();
+	switch (fixture->GetType())
+	{
+        case b2Shape::e_circle:
+		{
+			b2CircleShape* circle = (b2CircleShape*)fixture->GetShape();
+            
+			b2Vec2 center = b2Mul(xf, circle->m_p);
+			float32 radius = circle->m_radius;
+			b2Vec2 axis = b2Mul(xf.q, b2Vec2(1.0f, 0.0f));
+            
+			_debugDraw->DrawSolidCircle(center, radius, axis, color, transPos, angle);
+		}
+            break;
+            
+        case b2Shape::e_edge:
+		{
+			b2EdgeShape* edge = (b2EdgeShape*)fixture->GetShape();
+			b2Vec2 v1 = b2Mul(xf, edge->m_vertex1);
+			b2Vec2 v2 = b2Mul(xf, edge->m_vertex2);
+			_debugDraw->DrawSegment(v1, v2, color, transPos, angle);
+		}
+            break;
+            
+        case b2Shape::e_chain:
+		{
+			b2ChainShape* chain = (b2ChainShape*)fixture->GetShape();
+			int32 count = chain->m_count;
+			const b2Vec2* vertices = chain->m_vertices;
+            
+			b2Vec2 v1 = b2Mul(xf, vertices[0]);
+			for (int32 i = 1; i < count; ++i)
+			{
+				b2Vec2 v2 = b2Mul(xf, vertices[i]);
+				_debugDraw->DrawSegment(v1, v2, color, transPos, angle);
+				_debugDraw->DrawCircle(v1, 0.05f, color, transPos, angle);
+				v1 = v2;
+			}
+		}
+            break;
+            
+        case b2Shape::e_polygon:
+		{
+			b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
+			int32 vertexCount = poly->m_count;
+			b2Assert(vertexCount <= b2_maxPolygonVertices);
+			b2Vec2 vertices[b2_maxPolygonVertices];
+            
+			for (int32 i = 0; i < vertexCount; ++i)
+			{
+				vertices[i] = b2Mul(xf, poly->m_vertices[i]);
+			}
+            
+			_debugDraw->DrawSolidPolygon(vertices, vertexCount, color, transPos, angle);
+		}
+            break;
+            
+        default:
+            break;
+	}
 }
 
 void GroundLayer::update(float dt)
@@ -84,7 +199,7 @@ void GroundLayer::update(float dt)
 void GroundLayer::setViewPointCenter()
 {
     b2Vec2 carPos = _car->m_body->GetPosition();
-    Vec2 CenterPos = Vec2(carPos.x * _scale - (_winSize.width / 2), carPos.y * _scale - (_winSize.height / 2));
+    Vec2 CenterPos = Vec2((carPos.x * _scale - (_winSize.width / 2)), (carPos.y * _scale - (_winSize.height / 2)));
     this->setPosition(-1 * CenterPos);
 }
 

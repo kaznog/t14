@@ -34,14 +34,14 @@ public:
     virtual void update(float dt);
     
     // Layer::draw メソッドをオーバーライド
-    virtual void draw(Renderer *renderer, const Mat4 &transform, bool transformUpdated) override;
+    virtual void draw(Renderer *renderer, const Mat4 &transform, uint32_t flags) override;
     
     virtual void TouchBegan(int CtrlState);
     virtual void TouchEnded(int CtrlState);
     
 private:
     void setViewPointCenter();
-    void onDraw(const Mat4 &transform, bool transformUpdated);
+    void onDraw(const Mat4 &transform, uint32_t flags);
     Size _winSize;
     b2World* _world;
     Car* _car;

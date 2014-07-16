@@ -24,6 +24,7 @@ public:
     CREATE_FUNC(HelloWorld);
 private:
     Size _winSize;
+    GroundLayer* _ground;
 };
 
 #endif // __HELLOWORLD_SCENE_H__

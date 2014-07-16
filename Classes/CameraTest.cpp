@@ -87,16 +87,16 @@ void CameraTest::initPhysics()
     
 }
 
-void CameraTest::draw(Renderer *renderer, const Mat4 &transform, bool transformUpdated)
+void CameraTest::draw(Renderer *renderer, const Mat4 &transform, uint32_t flags)
 {
-    Layer::draw(renderer, transform, transformUpdated);
+    Layer::draw(renderer, transform, flags);
     
     _customCmd.init(_globalZOrder);
-    _customCmd.func = CC_CALLBACK_0(CameraTest::onDraw, this, transform, transformUpdated);
+    _customCmd.func = CC_CALLBACK_0(CameraTest::onDraw, this, transform, flags);
     renderer->addCommand(&_customCmd);
 }
 
-void CameraTest::onDraw(const Mat4 &transform, bool transformUpdated)
+void CameraTest::onDraw(const Mat4 &transform, uint32_t flags)
 {
     Director* director = Director::getInstance();
     CCASSERT(nullptr != director, "Director is null when seting matrix stack");

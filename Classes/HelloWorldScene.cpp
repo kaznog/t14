@@ -31,19 +31,11 @@ bool HelloWorld::init()
     auto director = Director::getInstance();
     _winSize = director->getWinSize();
  
-//    auto scrollview = ScrollView::create(_winSize);
-//    scrollview->setDirection(ScrollView::Direction::BOTH);
-//    scrollview->setBounceable(false);
-//    this->addChild(scrollview, 0);
-    
-    auto ground = GroundLayer::create();
-//    scrollview->setContainer(ground);
-//    scrollview->setContentSize(Size(_winSize.width * 2, _winSize.height * 2));
-//    scrollview->setContentOffset(-1 * Vec2(_winSize.width/2, _winSize.height/2));
-    this->addChild(ground, 0);
+    _ground = GroundLayer::create();
+    this->addChild(_ground, 0);
     
     auto interface = InterfaceLayer::create();
-    interface->setDelegate(ground);
+    interface->setDelegate(_ground);
     
     this->addChild(interface, 1);
 

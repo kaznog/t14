@@ -25,7 +25,7 @@ public:
     // Here's a difference. Method 'init' in cocos2d-x returns bool, instead of returning 'id' in cocos2d-iphone
     virtual bool init();
     // Layer::draw メソッドをオーバーライド
-    virtual void draw(Renderer *renderer, const Mat4 &transform, bool transformUpdated) override;
+    virtual void draw(Renderer *renderer, const Mat4 &transform, uint32_t flags) override;
     
     // implement the "static create()" method manually
     CREATE_FUNC(GroundLayer);
@@ -34,18 +34,20 @@ public:
     virtual void TouchBegan(int CtrlState);
     virtual void TouchEnded(int CtrlState);
     
+    void DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color& color);
+    Car* _car;
+    float _scale;
 private:
+    void onDraw(const Mat4 &transform, uint32_t flags);
     void loadWorld();
     void afterLoadProcessing(b2dJson* json);
     void setViewPointCenter();
     Size _winSize;
     b2World* _world;
-    Car* _car;
     void initPhysics();
     GLESDebugDraw* _debugDraw;
     CustomCommand _customCmd;
     
-    float _scale;
     int _controlState;
 };
 

@@ -20,6 +20,7 @@ Car::Car(b2World* world, Vec2 position)
     m_body->SetLinearVelocity(b2Vec2_zero);
     m_body->SetLinearDamping(0);
     m_body->SetAngularDamping(0);
+    m_body->SetUserData(this);
     
     b2Vec2 vertices[8];
     vertices[0].Set(  1.5 * CAR_SCALE,  0.0);
@@ -32,7 +33,7 @@ Car::Car(b2World* world, Vec2 position)
     vertices[7].Set( -1.5 * CAR_SCALE,  0.0);
     b2PolygonShape polygonShape;
     polygonShape.Set( vertices, 8 );
-//    b2Fixture* fixture = m_body->CreateFixture( &polygonShape, 0.1f );
+    b2Fixture* fixture = m_body->CreateFixture( &polygonShape, 0.1f );
     
     b2RevoluteJointDef jointDef;
     jointDef.bodyA = m_body;

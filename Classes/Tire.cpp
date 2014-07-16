@@ -18,7 +18,7 @@ Tire::Tire(b2World* world, b2Vec2 position)
     
     b2PolygonShape polygonShape;
     polygonShape.SetAsBox(  0.5f * CAR_SCALE, 1.25f * CAR_SCALE);
-//    b2Fixture* fixture = m_body->CreateFixture(&polygonShape, 1); // shape, density
+    b2Fixture* fixture = m_body->CreateFixture(&polygonShape, 1); // shape, density
     
     m_body->SetUserData( this );
     

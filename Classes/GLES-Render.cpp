@@ -45,36 +45,66 @@ void GLESDebugDraw::initShader( void )
     mColorLocation = glGetUniformLocation( mShaderProgram->getProgram(), "u_color");
 }
 
+void GLESDebugDraw::setCalculateTargetUniform(cocos2d::Vec3 transPos, float angle)
+{
+    Director* director = Director::getInstance();
+    CCASSERT(nullptr != director, "Director is null when seting matrix stack");
+    
+    Mat4 matView;
+    matView = director->getMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_MODELVIEW);
+    Mat4 matWVP;
+    Mat4 matTrans,matScale,matRota,matWorld,matTrans2;
+    Mat4::createRotation(Vec3(0, 0, 1), angle, &matRota);
+    Mat4::createTranslation(transPos.x, transPos.y, 0, &matTrans);
+    Mat4::createTranslation(-transPos.x, -transPos.y, 0, &matTrans2);
+    Mat4::createScale(Vec3(1, 1, 1), &matScale);
+    kmMat4Multiply(&matWorld, &matTrans, &matRota);
+    kmMat4Multiply(&matWorld, &matWorld, &matScale);
+    kmMat4Multiply(&matWVP, &matView, &matWorld);
+    kmMat4Multiply(&matWVP, &matWVP, &matTrans2);
+    mShaderProgram->setUniformsForBuiltins(matWVP);
+}
+
+void GLESDebugDraw::DrawPolygonSub(const b2Vec2* old_vertices, int vertexCount, const b2Color& color)
+{
+    b2Vec2* vertices = new b2Vec2[vertexCount];
+    for( int i=0;i<vertexCount;i++)
+    {
+        vertices[i] = old_vertices[i];
+        vertices[i] *= mRatio;
+    }
+    
+    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
+    
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    glDrawArrays(GL_LINE_LOOP, 0, vertexCount);
+    
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,vertexCount);
+    
+    
+    CHECK_GL_ERROR_DEBUG();
+    
+    delete[] vertices;
+}
+
+void GLESDebugDraw::DrawPolygon(const b2Vec2* old_vertices, int vertexCount, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+    
+    DrawPolygonSub(old_vertices, vertexCount, color);
+}
+
 void GLESDebugDraw::DrawPolygon(const b2Vec2* old_vertices, int vertexCount, const b2Color& color)
 {
     mShaderProgram->use();
     mShaderProgram->setUniformsForBuiltins();
 
-    b2Vec2* vertices = new b2Vec2[vertexCount];
-    for( int i=0;i<vertexCount;i++) 
-    {
-        vertices[i] = old_vertices[i];
-        vertices[i] *= mRatio;
-    }
-
-    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
-
-    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, vertices);
-    glDrawArrays(GL_LINE_LOOP, 0, vertexCount);
-
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,vertexCount);
-
-
-    CHECK_GL_ERROR_DEBUG();
-
-    delete[] vertices;
+    DrawPolygonSub(old_vertices, vertexCount, color);
 }
 
-void GLESDebugDraw::DrawSolidPolygon(const b2Vec2* old_vertices, int vertexCount, const b2Color& color)
+void GLESDebugDraw::DrawSolidPolygonSub(const b2Vec2* old_vertices, int vertexCount, const b2Color& color)
 {
-    mShaderProgram->use();
-    mShaderProgram->setUniformsForBuiltins();
-
     b2Vec2* vertices = new b2Vec2[vertexCount];
     for( int i=0;i<vertexCount;i++) {
         vertices[i] = old_vertices[i];
@@ -82,26 +112,39 @@ void GLESDebugDraw::DrawSolidPolygon(const b2Vec2* old_vertices, int vertexCount
     }
     
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r*0.5f, color.g*0.5f, color.b*0.5f, 0.5f);
-
+    
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, vertices);
-
+    
     glDrawArrays(GL_TRIANGLE_FAN, 0, vertexCount);
-
+    
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
     glDrawArrays(GL_LINE_LOOP, 0, vertexCount);
-
+    
     CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(2,vertexCount*2);
-
+    
     CHECK_GL_ERROR_DEBUG();
-
+    
     delete[] vertices;
 }
 
-void GLESDebugDraw::DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color)
+void GLESDebugDraw::DrawSolidPolygon(const b2Vec2* old_vertices, int vertexCount, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+    
+    DrawSolidPolygonSub(old_vertices, vertexCount, color);
+}
+
+void GLESDebugDraw::DrawSolidPolygon(const b2Vec2* old_vertices, int vertexCount, const b2Color& color)
 {
     mShaderProgram->use();
     mShaderProgram->setUniformsForBuiltins();
 
+    DrawSolidPolygonSub(old_vertices, vertexCount, color);
+}
+
+void GLESDebugDraw::DrawCircleSub(const b2Vec2& center, float32 radius, const b2Color& color)
+{
     const float32 k_segments = 16.0f;
     int vertexCount=16;
     const float32 k_increment = 2.0f * b2_pi / k_segments;
@@ -118,21 +161,34 @@ void GLESDebugDraw::DrawCircle(const b2Vec2& center, float32 radius, const b2Col
     
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
-
+    
     glDrawArrays(GL_LINE_LOOP, 0, vertexCount);
-
+    
     CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,vertexCount);
-
+    
     CHECK_GL_ERROR_DEBUG();
-
+    
     delete[] glVertices;
 }
 
-void GLESDebugDraw::DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color)
+void GLESDebugDraw::DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+    
+    DrawCircleSub(center, radius, color);
+}
+
+void GLESDebugDraw::DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color)
 {
     mShaderProgram->use();
     mShaderProgram->setUniformsForBuiltins();
 
+    DrawCircleSub(center, radius, color);
+}
+
+void GLESDebugDraw::DrawSolidCircleSub(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color)
+{
     const float32 k_segments = 16.0f;
     int vertexCount=16;
     const float32 k_increment = 2.0f * b2_pi / k_segments;
@@ -150,19 +206,64 @@ void GLESDebugDraw::DrawSolidCircle(const b2Vec2& center, float32 radius, const 
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r*0.5f, color.g*0.5f, color.b*0.5f, 0.5f);
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
     glDrawArrays(GL_TRIANGLE_FAN, 0, vertexCount);
-
-
+    
+    
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
     glDrawArrays(GL_LINE_LOOP, 0, vertexCount);
+    
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(2,vertexCount*2);
+    
+    CHECK_GL_ERROR_DEBUG();
+    
+    delete[] glVertices;
+}
 
+void GLESDebugDraw::DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+
+    DrawSolidCircleSub(center, radius, axis, color);
+    // Draw the axis line
+    DrawSegment(center,center+radius*axis,color, transPos, angle);
+    
+}
+
+void GLESDebugDraw::DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color)
+{
+    mShaderProgram->use();
+    mShaderProgram->setUniformsForBuiltins();
+
+    DrawSolidCircleSub(center, radius, axis, color);
     // Draw the axis line
     DrawSegment(center,center+radius*axis,color);
+    
+}
 
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(2,vertexCount*2);
-
+void GLESDebugDraw::DrawSegmentSub(const b2Vec2 &p1, const b2Vec2 &p2, const b2Color &color)
+{
+    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
+    
+    GLfloat    glVertices[] =
+    {
+        p1.x * mRatio, p1.y * mRatio,
+        p2.x * mRatio, p2.y * mRatio
+    };
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
+    
+    glDrawArrays(GL_LINES, 0, 2);
+    
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,2);
+    
     CHECK_GL_ERROR_DEBUG();
+}
 
-    delete[] glVertices;
+void GLESDebugDraw::DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+
+    DrawSegmentSub(p1, p2, color);
 }
 
 void GLESDebugDraw::DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color)
@@ -170,20 +271,18 @@ void GLESDebugDraw::DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Colo
     mShaderProgram->use();
     mShaderProgram->setUniformsForBuiltins();
 
-    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
+    DrawSegmentSub(p1, p2, color);
+}
 
-    GLfloat    glVertices[] = 
-    {
-        p1.x * mRatio, p1.y * mRatio,
-        p2.x * mRatio, p2.y * mRatio
-    };
-    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
-
-    glDrawArrays(GL_LINES, 0, 2);
-
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,2);
-
-    CHECK_GL_ERROR_DEBUG();
+void GLESDebugDraw::DrawTransform(const b2Transform& xf, cocos2d::Vec3 transPos, float angle)
+{
+    b2Vec2 p1 = xf.p, p2;
+    const float32 k_axisScale = 0.4f;
+    p2 = p1 + k_axisScale * xf.q.GetXAxis();
+    DrawSegment(p1, p2, b2Color(1,0,0), transPos, angle);
+    
+    p2 = p1 + k_axisScale * xf.q.GetYAxis();
+    DrawSegment(p1,p2,b2Color(0,1,0), transPos, angle);
 }
 
 void GLESDebugDraw::DrawTransform(const b2Transform& xf)
@@ -197,27 +296,40 @@ void GLESDebugDraw::DrawTransform(const b2Transform& xf)
     DrawSegment(p1,p2,b2Color(0,1,0));
 }
 
+void GLESDebugDraw::DrawPointSub(const b2Vec2& p, float32 size, const b2Color& color)
+{
+    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
+    
+    //    glPointSize(size);
+    
+    GLfloat                glVertices[] = {
+        p.x * mRatio, p.y * mRatio
+    };
+    
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
+    
+    glDrawArrays(GL_POINTS, 0, 1);
+    //    glPointSize(1.0f);
+    
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,1);
+    
+    CHECK_GL_ERROR_DEBUG();
+}
+
+void GLESDebugDraw::DrawPoint(const b2Vec2& p, float32 size, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+    
+    DrawPointSub(p, size, color);
+}
+
 void GLESDebugDraw::DrawPoint(const b2Vec2& p, float32 size, const b2Color& color)
 {
     mShaderProgram->use();
     mShaderProgram->setUniformsForBuiltins();
 
-    mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
-
-    //    glPointSize(size);
-
-    GLfloat                glVertices[] = {
-        p.x * mRatio, p.y * mRatio
-    };
-
-    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
-
-    glDrawArrays(GL_POINTS, 0, 1);
-    //    glPointSize(1.0f);
-
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,1);
-
-    CHECK_GL_ERROR_DEBUG();
+    DrawPointSub(p, size, color);
 }
 
 void GLESDebugDraw::DrawString(int x, int y, const char *string, ...)
@@ -227,24 +339,37 @@ void GLESDebugDraw::DrawString(int x, int y, const char *string, ...)
     /* Unsupported as yet. Could replace with bitmap font renderer at a later date */
 }
 
-void GLESDebugDraw::DrawAABB(b2AABB* aabb, const b2Color& color)
+void GLESDebugDraw::DrawAABBSub(b2AABB *aabb, const b2Color &color)
 {
-    mShaderProgram->use();
-    mShaderProgram->setUniformsForBuiltins();
-
     mShaderProgram->setUniformLocationWith4f(mColorLocation, color.r, color.g, color.b, 1);
-
+    
     GLfloat                glVertices[] = {
         aabb->lowerBound.x * mRatio, aabb->lowerBound.y * mRatio,
         aabb->upperBound.x * mRatio, aabb->lowerBound.y * mRatio,
         aabb->upperBound.x * mRatio, aabb->upperBound.y * mRatio,
         aabb->lowerBound.x * mRatio, aabb->upperBound.y * mRatio
     };
-
+    
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, glVertices);
     glDrawArrays(GL_LINE_LOOP, 0, 4);
-
+    
     CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,4);
-
+    
     CHECK_GL_ERROR_DEBUG();
+}
+
+void GLESDebugDraw::DrawAABB(b2AABB* aabb, const b2Color& color, cocos2d::Vec3 transPos, float angle)
+{
+    mShaderProgram->use();
+    setCalculateTargetUniform(transPos, angle);
+    
+    DrawAABBSub(aabb, color);
+}
+
+void GLESDebugDraw::DrawAABB(b2AABB* aabb, const b2Color& color)
+{
+    mShaderProgram->use();
+    mShaderProgram->setUniformsForBuiltins();
+
+    DrawAABBSub(aabb, color);
 }
